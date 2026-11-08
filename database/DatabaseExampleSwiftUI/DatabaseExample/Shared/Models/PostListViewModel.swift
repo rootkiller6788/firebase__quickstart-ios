@@ -82,7 +82,8 @@ class PostListViewModel: ObservableObject {
     removeObserver()
     // read data by listening for value events
     observedRef = ref
-    refHandle = ref.observe(DataEventType.value, with: { snapshot in
+    refHandle = ref.observe(DataEventType.value, with: { [weak self] snapshot in
+      guard let self = self else { return }
       // retrieved data is of type dictionary of dictionary
       guard let value = snapshot.value as? [String: [String: Any]] else { return }
 
@@ -98,6 +99,12 @@ class PostListViewModel: ObservableObject {
         self.posts = sortedValues.compactMap { PostViewModel(id: $0, dict: $1) }
       }
     })
+  }
+
+  deinit {
+    // The observer closure holds `self` weakly, so make sure a listener that
+    // outlived the view is detached when the view model goes away.
+    removeObserver()
   }
 
   func onViewDisappear() {

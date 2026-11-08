@@ -69,6 +69,18 @@ class PostViewModel: ObservableObject, Identifiable {
     refreshIsStarred()
   }
 
+  deinit {
+    // The observer closures only hold `self` weakly, so deinit can run while a
+    // listener is still registered. Hand each handle back to the reference it
+    // was registered on so nothing outlives the view model.
+    if let postHandle = postHandle {
+      ref.child("posts").child(id).removeObserver(withHandle: postHandle)
+    }
+    if let commentsHandle = commentsHandle {
+      ref.child("post-comments").child(id).removeObserver(withHandle: commentsHandle)
+    }
+  }
+
   private func refreshIsStarred() {
     isStarred = {
       if let uid = getCurrentUserID() {
@@ -103,7 +115,8 @@ class PostViewModel: ObservableObject, Identifiable {
     if let commentsHandle = commentsHandle {
       commentRef.removeObserver(withHandle: commentsHandle)
     }
-    commentsHandle = commentRef.observe(DataEventType.value, with: { snapshot in
+    commentsHandle = commentRef.observe(DataEventType.value, with: { [weak self] snapshot in
+      guard let self = self else { return }
       guard let comments = snapshot.value as? [String: [String: Any]] else { return }
       let sortedComments = comments.sorted(by: { $0.key > $1.key })
       self.comments = sortedComments.compactMap { Comment(id: $0, dict: $1) }
@@ -149,7 +162,8 @@ class PostViewModel: ObservableObject, Identifiable {
     if let postHandle = postHandle {
       postListRef.removeObserver(withHandle: postHandle)
     }
-    postHandle = postListRef.observe(DataEventType.value, with: { snapshot in
+    postHandle = postListRef.observe(DataEventType.value, with: { [weak self] snapshot in
+      guard let self = self else { return }
       guard let post = snapshot.value as? [String: AnyObject] else { return }
       self.starCount = post["starCount"] as? Int ?? 0
       self.userIDsStarredBy = post["userIDsStarredBy"] as? [String: Bool] ?? [:]
